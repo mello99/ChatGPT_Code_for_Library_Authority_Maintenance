@@ -1,7 +1,6 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
-# Author: Refactored by Codex GPT
+# Author: Refactored by Codex GPT, originally created with ChatGPT 4o and ChatGPT 5
 # Notes: Cleaned, de-duplicated, more portable, with inline comments
-# Originally created with ChatGPT 4o and ChatGPT 5
 
 import os
 import re
@@ -178,3 +177,94 @@ def run_conversion(src: Path, dest: Path):
         subprocess.run("TASKKILL /F /IM cmarcedit.exe", shell=True)
         log_marc(f"Timeout expired: {src}")
         return None
+
+def convert_and_join_by_type(record_type: str):
+    src_dir = OUTPUT_BASE / record_type
+    out_dir = CONVERTED_BASE / record_type
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    xml_files = [f for f in list_xml_files(src_dir) if was_modified_today(f)]
+    if not xml_files:
+        log_marc(f"[{record_type}] No MARCXML files modified today; skipping.")
+        return
+
+    joined_output = JOINED_DIR / f"LC_Authorities_{record_type}_{datetime.now():%Y-%m-%d}.mrc"
+    if joined_output.exists():
+        version = 2
+        while True:
+            candidate = JOINED_DIR / f"LC_Authorities_{record_type}_{datetime.now():%Y-%m-%d}_v{version}.mrc"
+            if not candidate.exists():
+                joined_output = candidate
+                break
+            version += 1
+
+    converted_files = []
+    for src in xml_files:
+        base = strip_marcxml_ext(src.stem)
+        dest = out_dir / f"{base}.mrc"
+
+        if dest.exists() and was_modified_today(dest):
+            log_marc(f"[{record_type}] [SKIP] Already converted today: {src.name}")
+            converted_files.append(dest)
+            continue
+
+        result = run_conversion(src, dest)
+        if result and result.returncode == 0 and dest.exists():
+            log_marc(f"[{record_type}] SUCCESS: {src.name}")
+            converted_files.append(dest)
+        else:
+            log_marc(f"[{record_type}] FAILED: {src.name}")
+
+    if len(converted_files) < 2:
+        log_marc(f"[{record_type}] Skipping join: only {len(converted_files)} file(s).")
+        return
+
+    try:
+        with open(joined_output, "wb") as outfh:
+            for name in sorted(converted_files):
+                with open(name, "rb") as infh:
+                    shutil.copyfileobj(infh, outfh, length=1024 * 1024)
+        if joined_output.stat().st_size > 0:
+            log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
+        else:
+            log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
+    except Exception as e:
+        log_marc(f"[{record_type}] ERROR during join: {e}")
+
+def run_marc_conversion_pipeline():
+    if not MARCEDIT_PATH.exists():
+        log_marc(f"ERROR: MARCEdit not found at {MARCEDIT_PATH}")
+        return
+    for typ in TARGET_TYPES:
+        convert_and_join_by_type(typ)
+
+# =================== MAIN ===================
+def main():
+    json_files = find_latest_json_files_recursive(INPUT_DIR)
+    if not json_files:
+        return
+
+    results = []
+    for json_file in json_files:
+        logging.info(f"Processing: {json_file}")
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logging.error(f"Failed to parse {json_file}: {e}")
+            continue
+
+        buckets = parse_jsonld_structured(data)
+
+        for k in TARGET_TYPES:
+            logging.info(f"[COUNT] {k} in {json_file.name}: {len(buckets[k])}")
+            folder = OUTPUT_BASE / k
+            for url in sorted(buckets[k]):
+                status = download_file(url, folder)
+                results.append((k, url, status))
+
+    save_csv_log(results)
+    run_marc_conversion_pipeline()
+
+if __name__ == "__main__":
+    main()
