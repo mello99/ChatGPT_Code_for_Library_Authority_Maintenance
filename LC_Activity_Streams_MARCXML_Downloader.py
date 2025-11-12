@@ -27,7 +27,7 @@ DELAY_SECONDS = 5
 USER_AGENT = "Mozilla/5.0 (compatible; LCHarvester/1.0; +https://example.org)"
 TARGET_TYPES = {"Create", "Update", "Remove"} # Case-sensitive
 
-MARCEDIT_PATH = Path(r"C:\Scripts\MARCEdit\cmarcedit.exe")
+MARCEDIT_PATH = Path(r"C:\...\cmarcedit.exe")
 CONVERTED_BASE = OUTPUT_BASE / "Converted_MARC"
 JOINED_DIR = OUTPUT_BASE / "Joined_MARC"
 LOG_FILE_MARCEDIT = Path(r"C:\Scripts\LC_Activity_Logs\marcedit_conversion_log.txt")
