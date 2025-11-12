@@ -1,5 +1,5 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
-# Author: Refactored by Codex GPT, originally created with ChatGPT 4o and ChatGPT 5
+# Author: Refactored by Codex GPT, originally written with ChatGPT 4o and 5
 # Notes: Cleaned, de-duplicated, more portable, with inline comments
 
 import os
@@ -17,19 +17,20 @@ from datetime import datetime
 from typing import Any, Set, List, Tuple, Dict
 from sys import platform
 
+
 # =================== CONFIGURATION ===================
-INPUT_DIR = Path(r"C:/.../Daily_LC_Activity_Streams")
-OUTPUT_BASE = Path(r"C:/.../LC_Activity_Downloads")
-LOG_FILE = Path(r"C:/.../LC_Activity_Logs/jsonld_download_log.txt")
-CSV_FILE = Path(f"C:/.../LC_Activity_Logs/activity_log_{datetime.now():%Y-%m-%d}.csv")
+INPUT_DIR = Path(r"C:\Scripts\Daily_LC_Activity_Streams")
+OUTPUT_BASE = Path(r"C:\Scripts\LC_Activity_Downloads")
+LOG_FILE = Path(r"C:\Scripts\LC_Activity_Logs\jsonld_download_log.txt")
+CSV_FILE = Path(rf"C:\Scripts\LC_Activity_Logs\activity_log_{datetime.now():%Y-%m-%d}.csv")
 DELAY_SECONDS = 5
 USER_AGENT = "Mozilla/5.0 (compatible; LCHarvester/1.0; +https://example.org)"
-TARGET_TYPES = {"Create", "Update", "Remove"}  # Case-sensitive
+TARGET_TYPES = {"Create", "Update", "Remove"} # Case-sensitive
 
-MARCEDIT_PATH = Path(r"C:/.../MARCEdit/cmarcedit.exe")
+MARCEDIT_PATH = Path(r"C:\Scripts\MARCEdit\cmarcedit.exe")
 CONVERTED_BASE = OUTPUT_BASE / "Converted_MARC"
 JOINED_DIR = OUTPUT_BASE / "Joined_MARC"
-LOG_FILE_MARCEDIT = Path(r"C:/Scripts/LC_Activity_Logs/marcedit_conversion_log.txt")
+LOG_FILE_MARCEDIT = Path(r"C:\Scripts\LC_Activity_Logs\marcedit_conversion_log.txt")
 PER_FILE_TIMEOUT = 90
 
 # =================== UTILITIES ===================
