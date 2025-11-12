@@ -5,4 +5,6 @@ This series of Python and Windows Batch files were created with ChatGPT and refa
 
 LC_Activity_Streams_MARCXML_Downloader.py - harvests, downloads, converts, and joins MARC authority files to be imported into ILSes.
 
+run_lc_activity_streams_marcxml_downloader.bat - initializes "LC_Activity_Streams_MARCXML_Downloader.py" from a Windows environment
+
 Feel free to comment - code recommendations are always welcome!
