@@ -1,6 +1,7 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
 # Author: Refactored by Codex GPT, originally written with ChatGPT 4o and 5
 # Notes: Cleaned, de-duplicated, more portable, with inline comments
+# Designed for Windows machines
 
 import os
 import re
