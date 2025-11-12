@@ -206,6 +206,17 @@ def convert_and_join_by_type(record_type: str):
         log_marc(f"[{record_type}] No MARCXML files to convert.")
         return
 
+    # Only consider MARCXML files that were modified TODAY
+    today_date = datetime.now().date()
+    xml_files = [
+        p for p in xml_files
+        if datetime.fromtimestamp(os.path.getmtime(p)).date() == today_date
+    ]
+    if not xml_files:
+        log_marc(f"[{record_type}] No MARCXML files modified today; skipping.")
+        return
+
+
 # === Join (only if joined file doesn’t already exist) ===
 
     joined_output = os.path.join(JOINED_DIR, f"LC_Authorities_{record_type}_{today}.mrc")
@@ -221,8 +232,13 @@ def convert_and_join_by_type(record_type: str):
         dest = os.path.join(out_dir, base + ".mrc")
 
         if os.path.exists(dest) and os.path.getsize(dest) > 0:
-            log_marc(f"[{record_type}] [SKIP] Already converted: {os.path.basename(src)}")
-            converted_files.append(dest)
+            # Only include already-converted files if the .mrc itself is from TODAY
+            dest_mtime_date = datetime.fromtimestamp(os.path.getmtime(dest)).date()
+            if dest_mtime_date == today_date:
+                log_marc(f"[{record_type}] [SKIP] Already converted today: {os.path.basename(src)}")
+                converted_files.append(dest)
+            else:
+                log_marc(f"[{record_type}] [SKIP] Converted earlier (not today): {os.path.basename(src)}")
             continue
 
         result = run_conversion(src, dest)
