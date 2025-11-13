@@ -220,33 +220,32 @@ def convert_and_join_by_type(record_type: str):
         log_marc(f"[{record_type}] Skipping join: only {len(converted_files)} file(s).")
         return
 
-    try:
-    with open(joined_output, "wb") as outfh:
-        for name in sorted(converted_files):
-            with open(name, "rb") as infh:
-                shutil.copyfileobj(infh, outfh, length=1024 * 1024)
+        try:
+        with open(joined_output, "wb") as outfh:
+            for name in sorted(converted_files):
+                with open(name, "rb") as infh:
+                    shutil.copyfileobj(infh, outfh, length=1024 * 1024)
 
-    if joined_output.stat().st_size > 0:
-        log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
+        if joined_output.stat().st_size > 0:
+            log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
 
-        # === MOVE joined files to archive ===
-        archive_dir = out_dir / "Previously_Joined_MARC_Files"
-        archive_dir.mkdir(exist_ok=True)
+            # === MOVE joined files to archive ===
+            archive_dir = out_dir / "Previously_Joined_MARC_Files"
+            archive_dir.mkdir(exist_ok=True)
 
-        for file in converted_files:
-            try:
-                archive_path = archive_dir / file.name
-                shutil.move(str(file), str(archive_path))
-                log_marc(f"[{record_type}] Moved to archive: {file.name}")
-            except Exception as e:
-                log_marc(f"[{record_type}] ERROR moving {file.name} to archive: {e}")
+            for file in converted_files:
+                try:
+                    archive_path = archive_dir / file.name
+                    shutil.move(str(file), str(archive_path))
+                    log_marc(f"[{record_type}] Moved to archive: {file.name}")
+                except Exception as e:
+                    log_marc(f"[{record_type}] ERROR moving {file.name} to archive: {e}")
 
-    else:
-        log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
+        else:
+            log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
 
-except Exception as e:
-    log_marc(f"[{record_type}] ERROR during join: {e}")
-
+    except Exception as e:
+        log_marc(f"[{record_type}] ERROR during join: {e}")
 
         if joined_output.stat().st_size > 0:
             log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
