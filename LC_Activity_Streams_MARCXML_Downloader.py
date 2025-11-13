@@ -221,19 +221,30 @@ def convert_and_join_by_type(record_type: str):
         return
 
     try:
-        with open(joined_output, "wb") as outfh:
-            for name in sorted(converted_files):
-                with open(name, "rb") as infh:
-                    shutil.copyfileobj(infh, outfh, length=1024 * 1024)
-            # Mark files as joined to prevent re-joining in future
-            # Move all joined files into the archive subfolder
-    for name in converted_files:
-        try:
-            target = archive_dir / name.name
-            shutil.move(str(name), str(target))
-            log_marc(f"[{record_type}] Moved to archive: {name.name}")
-        except Exception as e:
-            log_marc(f"[{record_type}] WARNING: Couldn't move {name.name} to archive: {e}")
+    with open(joined_output, "wb") as outfh:
+        for name in sorted(converted_files):
+            with open(name, "rb") as infh:
+                shutil.copyfileobj(infh, outfh, length=1024 * 1024)
+    
+    if joined_output.stat().st_size > 0:
+        log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
+
+        #  Move joined files into archive folder
+        archive_dir = src_dir / "Previously_Joined_MARC_Files"
+        archive_dir.mkdir(exist_ok=True)
+
+        for name in converted_files:
+            try:
+                target = archive_dir / name.name
+                shutil.move(str(name), str(target))
+                log_marc(f"[{record_type}] Moved to archive: {name.name}")
+            except Exception as e:
+                log_marc(f"[{record_type}] WARNING: Couldn't move {name.name} to archive: {e}")
+    else:
+        log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
+except Exception as e:
+    log_marc(f"[{record_type}] ERROR during join: {e}")
+
 
 
         if joined_output.stat().st_size > 0:
