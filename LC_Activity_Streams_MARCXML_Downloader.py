@@ -108,8 +108,9 @@ def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
             for t in ("Create", "Update"):
                 if _type_contains(node, t):
                     tmp = set()
-                    _collect_urls_ending_marcxml(node, tmp)
-                    results[t].update(tmp)
+                    if obj:  # add this to only search within "object"
+                        _collect_urls_ending_marcxml(obj, tmp)
+                results[t].update(tmp)
             if _type_contains(node, "Remove"):
                 results["Remove"].update(_extract_remove_urls_from_node(node))
             for v in node.values():
