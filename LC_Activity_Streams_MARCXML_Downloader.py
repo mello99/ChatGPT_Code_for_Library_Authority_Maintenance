@@ -103,21 +103,28 @@ def _extract_remove_urls_from_node(node: Any) -> Set[str]:
 def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
     results = {t: set() for t in TARGET_TYPES}
 
-    def _walk_jsonld(node: Any):
-        if isinstance(node, dict):
-            for t in ("Create", "Update"):
-                if _type_contains(node, t):
-                    tmp = set()
-                    if obj:  # add this to only search within "object"
-                        _collect_urls_ending_marcxml(obj, tmp)
+def _walk_jsonld(node: Any):
+    if isinstance(node, dict):
+        for t in ("Create", "Update"):
+            if _type_contains(node, t):
+                tmp = set()
+                obj = node.get("object")
+                if obj:
+                    _collect_urls_ending_marcxml(obj, tmp)
+                else:
+                    # Fallback: try entire node like original version
+                    _collect_urls_ending_marcxml(node, tmp)
                 results[t].update(tmp)
-            if _type_contains(node, "Remove"):
-                results["Remove"].update(_extract_remove_urls_from_node(node))
-            for v in node.values():
-                _walk_jsonld(v)
-        elif isinstance(node, list):
-            for item in node:
-                _walk_jsonld(item)
+
+        if _type_contains(node, "Remove"):
+            results["Remove"].update(_extract_remove_urls_from_node(node))
+
+        for v in node.values():
+            _walk_jsonld(v)
+
+    elif isinstance(node, list):
+        for item in node:
+            _walk_jsonld(item)
 
     _walk_jsonld(payload)
     return results
