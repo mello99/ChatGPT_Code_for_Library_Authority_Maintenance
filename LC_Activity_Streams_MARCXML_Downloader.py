@@ -1,6 +1,6 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
 # Author: Refactored by Codex GPT, originally written with ChatGPT 4o and 5
-# Notes: Cleaned, de-duplicated, now scans ALL .json/.jsonld files, detects @type deeply, grabs href from object.url
+# Notes: Cleaned, de-duplicated, now scans ONLY today's .json/.jsonld files, detects @type deeply, grabs href from object.url
 # Designed for Windows machines
 
 import os
@@ -44,16 +44,16 @@ def was_modified_today(path: Path) -> bool:
 def strip_marcxml_ext(filename: str) -> str:
     return re.sub(r'\.marcxml(\.xml)?$', '', filename, flags=re.IGNORECASE)
 
-def find_all_json_files_recursive(root_folder: Path) -> List[Path]:
-    json_files = []
+def find_today_json_files(root_folder: Path) -> List[Path]:
+    today = datetime.now().date()
+    matches = []
     for subdir, _, _ in os.walk(root_folder):
-        jsons = list(Path(subdir).glob("*.json")) + list(Path(subdir).glob("*.jsonld"))
-        json_files.extend(jsons)
-    if not json_files:
-        logging.critical(f"No JSON/JSONLD files found under {root_folder}")
-    else:
-        logging.info(f"Found {len(json_files)} JSON files from subdirectories")
-    return json_files
+        for ext in ("*.json", "*.jsonld"):
+            for path in Path(subdir).glob(ext):
+                if path.stat().st_mtime and datetime.fromtimestamp(path.stat().st_mtime).date() == today:
+                    matches.append(path)
+    logging.info(f"Found {len(matches)} JSON files modified today.")
+    return matches
 
 # =================== JSONLD PARSING ===================
 def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
@@ -242,7 +242,7 @@ def main():
         ]
     )
 
-    json_files = find_all_json_files_recursive(INPUT_DIR)
+    json_files = find_today_json_files(INPUT_DIR)
     if not json_files:
         return
 
