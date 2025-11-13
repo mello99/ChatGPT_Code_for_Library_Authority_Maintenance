@@ -31,6 +31,8 @@ MARCEDIT_PATH = Path(r"C:\...\cmarcedit.exe")
 CONVERTED_BASE = OUTPUT_BASE / "Converted_MARC"
 JOINED_DIR = OUTPUT_BASE / "Joined_MARC"
 LOG_FILE_MARCEDIT = Path(r"C:\Scripts\LC_Activity_Logs\marcedit_conversion_log.txt")
+archive_dir = out_dir / "Previously_Joined_MARC_Files"
+archive_dir.mkdir(exist_ok=True)
 PER_FILE_TIMEOUT = 90
 
 # =================== UTILITIES ===================
@@ -174,7 +176,10 @@ def convert_and_join_by_type(record_type: str):
     out_dir = CONVERTED_BASE / record_type
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    xml_files = [f for f in list_xml_files(src_dir) if was_modified_today(f)]
+    xml_files = [
+        f for f in list_xml_files(src_dir)
+        if was_modified_today(f) and "Previously_Joined_MARC_Files" not in str(f)
+    ]
     if not xml_files:
         log_marc(f"[{record_type}] No MARCXML files modified today; skipping.")
         return
@@ -220,8 +225,16 @@ def convert_and_join_by_type(record_type: str):
             for name in sorted(converted_files):
                 with open(name, "rb") as infh:
                     shutil.copyfileobj(infh, outfh, length=1024 * 1024)
-                marker = name.with_suffix(".mrc.joined")
-                marker.touch()
+            # Mark files as joined to prevent re-joining in future
+            # Move all joined files into the archive subfolder
+    for name in converted_files:
+        try:
+            target = archive_dir / name.name
+            shutil.move(str(name), str(target))
+            log_marc(f"[{record_type}] Moved to archive: {name.name}")
+        except Exception as e:
+            log_marc(f"[{record_type}] WARNING: Couldn't move {name.name} to archive: {e}")
+
 
         if joined_output.stat().st_size > 0:
             log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
