@@ -58,73 +58,63 @@ def strip_marcxml_ext(filename: str) -> str:
     return re.sub(r'\.marcxml(\.xml)?$', '', filename, flags=re.IGNORECASE)
 
 # =================== JSONLD PARSING ===================
-def find_latest_json_files_recursive(root_folder: Path) -> List[Path]:
-    latest_files = []
-    for subdir, _, _ in os.walk(root_folder):
-        jsons = list(Path(subdir).glob("*.json")) + list(Path(subdir).glob("*.jsonld"))
-        if jsons:
-            latest_files.append(max(jsons, key=os.path.getmtime))
-    if not latest_files:
-        logging.critical(f"No JSON/JSONLD files found under {root_folder}")
-    else:
-        logging.info(f"Found {len(latest_files)} most-recent JSON files from subdirectories")
-    return latest_files
-
-def _type_contains(node: dict, value: str) -> bool:
-    t = node.get("type")
-    return t == value or (isinstance(t, list) and value in t)
-
-def _collect_urls_ending_marcxml(obj: Any, acc: Set[str]) -> None:
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            _collect_urls_ending_marcxml(k, acc)
-            _collect_urls_ending_marcxml(v, acc)
-    elif isinstance(obj, list):
-        for item in obj:
-            _collect_urls_ending_marcxml(item, acc)
-    elif isinstance(obj, str):
-        s = obj.strip()
-        if s.startswith("https://id.loc.gov/") and s.lower().endswith(".marcxml.xml"):
-            acc.add(s.split("?", 1)[0])
-
-def _extract_remove_urls_from_node(node: Any) -> Set[str]:
-    urls = set()
-    if not (isinstance(node, dict) and _type_contains(node, "Remove")):
-        return urls
-    obj = node.get("object")
-    if isinstance(obj, dict):
-        for link in obj.get("url", []):
-            if isinstance(link, dict) and link.get("mediaType") == "application/marc+xml":
-                href = link.get("href", "").split("?", 1)[0]
-                if href.endswith(".marcxml.xml"):
-                    urls.add(href)
-    return urls
-
 def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
     results = {t: set() for t in TARGET_TYPES}
 
-def _walk_jsonld(node: Any):
-    if isinstance(node, dict):
-        for t in ("Create", "Update"):
-            if _type_contains(node, t):
-                tmp = set()
-                obj = node.get("object")
-                if obj:
-                    _collect_urls_ending_marcxml(obj, tmp)
-                else:
-                    # Fallback: try entire node like original version
-                    _collect_urls_ending_marcxml(node, tmp)
-                results[t].update(tmp)
+    def _type_contains(node: dict, value: str) -> bool:
+        for key in ("type", "@type"):
+            t = node.get(key)
+            if t == value or (isinstance(t, list) and value in t):
+                return True
+        return False
 
-        if _type_contains(node, "Remove"):
-            results["Remove"].update(_extract_remove_urls_from_node(node))
+    def _collect_urls_ending_marcxml(obj: Any, acc: Set[str]) -> None:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                _collect_urls_ending_marcxml(k, acc)
+                _collect_urls_ending_marcxml(v, acc)
+        elif isinstance(obj, list):
+            for item in obj:
+                _collect_urls_ending_marcxml(item, acc)
+        elif isinstance(obj, str):
+            s = obj.strip()
+            if s.startswith("https://id.loc.gov/") and s.lower().endswith(".marcxml.xml"):
+                acc.add(s.split("?", 1)[0])
 
-        for v in node.values():
-            _walk_jsonld(v)
+    def _extract_remove_urls_from_node(node: Any) -> Set[str]:
+        urls = set()
+        if not (isinstance(node, dict) and _type_contains(node, "Remove")):
+            return urls
+        obj = node.get("object")
+        if isinstance(obj, dict):
+            for link in obj.get("url", []):
+                if isinstance(link, dict) and link.get("mediaType") == "application/marc+xml":
+                    href = link.get("href", "").split("?", 1)[0]
+                    if href.endswith(".marcxml.xml"):
+                        urls.add(href)
+        return urls
 
-    elif isinstance(node, list):
-        for item in node:
-            _walk_jsonld(item)
+    def _walk_jsonld(node: Any):
+        if isinstance(node, dict):
+            for t in ("Create", "Update"):
+                if _type_contains(node, t):
+                    tmp = set()
+                    obj = node.get("object")
+                    if obj:
+                        _collect_urls_ending_marcxml(obj, tmp)
+                    else:
+                        _collect_urls_ending_marcxml(node, tmp)
+                    results[t].update(tmp)
+
+            if _type_contains(node, "Remove"):
+                results["Remove"].update(_extract_remove_urls_from_node(node))
+
+            for v in node.values():
+                _walk_jsonld(v)
+
+        elif isinstance(node, list):
+            for item in node:
+                _walk_jsonld(item)
 
     _walk_jsonld(payload)
     return results
