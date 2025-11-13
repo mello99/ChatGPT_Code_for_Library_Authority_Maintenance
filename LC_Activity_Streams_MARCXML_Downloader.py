@@ -1,6 +1,6 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
 # Author: Refactored by Codex GPT, originally written with ChatGPT 4o and 5
-# Notes: Cleaned, de-duplicated, now scans ONLY today's .json/.jsonld files, detects @type deeply, grabs href from object.url
+# Notes: Cleaned, de-duplicated, now scans ALL .json/.jsonld files, detects @type deeply, grabs href from object.url
 # Designed for Windows machines
 
 import os
@@ -44,16 +44,17 @@ def was_modified_today(path: Path) -> bool:
 def strip_marcxml_ext(filename: str) -> str:
     return re.sub(r'\.marcxml(\.xml)?$', '', filename, flags=re.IGNORECASE)
 
-def find_today_json_files(root_folder: Path) -> List[Path]:
-    today = datetime.now().date()
-    matches = []
+def find_all_json_files_recursive(root_folder: Path) -> List[Path]:
+    json_files = []
     for subdir, _, _ in os.walk(root_folder):
-        for ext in ("*.json", "*.jsonld"):
-            for path in Path(subdir).glob(ext):
-                if path.stat().st_mtime and datetime.fromtimestamp(path.stat().st_mtime).date() == today:
-                    matches.append(path)
-    logging.info(f"Found {len(matches)} JSON files modified today.")
-    return matches
+        jsons = list(Path(subdir).glob("*.json")) + list(Path(subdir).glob("*.jsonld"))
+        json_files.extend(jsons)
+    json_files = [f for f in json_files if was_modified_today(f)]
+    if not json_files:
+        logging.critical(f"No JSON/JSONLD files modified today under {root_folder}")
+    else:
+        logging.info(f"Found {len(json_files)} JSON files modified today")
+    return json_files
 
 # =================== JSONLD PARSING ===================
 def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
@@ -192,6 +193,11 @@ def convert_and_join_by_type(record_type: str):
     for src in xml_files:
         base = strip_marcxml_ext(src.stem)
         dest = out_dir / f"{base}.mrc"
+        marker = dest.with_suffix(".mrc.joined")
+
+        if marker.exists():
+            log_marc(f"[{record_type}] [SKIP] Already joined previously: {dest.name}")
+            continue
 
         if dest.exists() and was_modified_today(dest):
             log_marc(f"[{record_type}] [SKIP] Already converted today: {src.name}")
@@ -214,6 +220,9 @@ def convert_and_join_by_type(record_type: str):
             for name in sorted(converted_files):
                 with open(name, "rb") as infh:
                     shutil.copyfileobj(infh, outfh, length=1024 * 1024)
+                marker = name.with_suffix(".mrc.joined")
+                marker.touch()
+
         if joined_output.stat().st_size > 0:
             log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
         else:
@@ -242,7 +251,7 @@ def main():
         ]
     )
 
-    json_files = find_today_json_files(INPUT_DIR)
+    json_files = find_all_json_files_recursive(INPUT_DIR)
     if not json_files:
         return
 
