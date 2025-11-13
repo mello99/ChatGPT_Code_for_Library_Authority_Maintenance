@@ -225,6 +225,7 @@ def convert_and_join_by_type(record_type: str):
         for name in sorted(converted_files):
             with open(name, "rb") as infh:
                 shutil.copyfileobj(infh, outfh, length=1024 * 1024)
+
     
     if joined_output.stat().st_size > 0:
         log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
