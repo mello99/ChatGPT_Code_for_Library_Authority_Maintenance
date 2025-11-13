@@ -56,6 +56,33 @@ def find_latest_json_files_recursive(root_folder: Path) -> List[Path]:
         logging.info(f"Found {len(latest_files)} most-recent JSON files from subdirectories")
     return latest_files
 
+def download_file(url: str, dest_folder: Path) -> str:
+    dest_folder.mkdir(parents=True, exist_ok=True)
+    filename = Path(url.split("?", 1)[0]).name
+    dest_path = dest_folder / filename
+
+    if dest_path.exists():
+        logging.info(f"[SKIP] Already downloaded: {filename}")
+        return "skipped"
+
+    try:
+        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
+        r.raise_for_status()
+        dest_path.write_bytes(r.content)
+        logging.info(f"[OK] Downloaded: {filename} → {dest_folder}")
+        time.sleep(DELAY_SECONDS)
+        return "success"
+    except Exception as e:
+        logging.error(f"[FAIL] {filename}: {e}")
+        return "failed"
+
+def save_csv_log(rows: List[Tuple[str, str, str]]) -> None:
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["RecordType", "URL", "Status"])
+        writer.writerows(rows)
+    logging.info(f"[DONE] Results written to {CSV_FILE}")
+
 # =================== JSONLD PARSING ===================
 def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
     results = {t: set() for t in TARGET_TYPES}
@@ -211,6 +238,18 @@ def run_marc_conversion_pipeline():
 
 # =================== MAIN ===================
 def main():
+    ensure_dirs(OUTPUT_BASE, LOG_FILE.parent, CSV_FILE.parent, CONVERTED_BASE, JOINED_DIR, LOG_FILE_MARCEDIT.parent)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[{asctime}] [{levelname}] {message}",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+        handlers=[
+            logging.FileHandler(LOG_FILE, encoding="utf-8"),
+            logging.StreamHandler()
+        ]
+    )
+
     json_files = find_latest_json_files_recursive(INPUT_DIR)
     if not json_files:
         return
