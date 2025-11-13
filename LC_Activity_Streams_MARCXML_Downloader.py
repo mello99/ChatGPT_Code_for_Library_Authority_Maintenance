@@ -1,6 +1,6 @@
 # Refactored Script: LC Activity Harvester & MARC Conversion
 # Author: Refactored by Codex GPT, originally written with ChatGPT 4o and 5
-# Notes: Cleaned, de-duplicated, more portable, with inline comments
+# Notes: Cleaned, de-duplicated, now scans ALL .json/.jsonld files, detects @type deeply, grabs href from object.url
 # Designed for Windows machines
 
 import os
@@ -25,7 +25,7 @@ LOG_FILE = Path(r"C:\Scripts\LC_Activity_Logs\jsonld_download_log.txt")
 CSV_FILE = Path(rf"C:\Scripts\LC_Activity_Logs\activity_log_{datetime.now():%Y-%m-%d}.csv")
 DELAY_SECONDS = 5
 USER_AGENT = "Mozilla/5.0 (compatible; LCHarvester/1.0; +https://example.org)"
-TARGET_TYPES = {"Create", "Update", "Remove"} # Case-sensitive
+TARGET_TYPES = {"Create", "Update", "Remove"}
 
 MARCEDIT_PATH = Path(r"C:\...\cmarcedit.exe")
 CONVERTED_BASE = OUTPUT_BASE / "Converted_MARC"
@@ -44,18 +44,72 @@ def was_modified_today(path: Path) -> bool:
 def strip_marcxml_ext(filename: str) -> str:
     return re.sub(r'\.marcxml(\.xml)?$', '', filename, flags=re.IGNORECASE)
 
-def find_latest_json_files_recursive(root_folder: Path) -> List[Path]:
-    latest_files = []
+def find_all_json_files_recursive(root_folder: Path) -> List[Path]:
+    json_files = []
     for subdir, _, _ in os.walk(root_folder):
         jsons = list(Path(subdir).glob("*.json")) + list(Path(subdir).glob("*.jsonld"))
-        if jsons:
-            latest_files.append(max(jsons, key=os.path.getmtime))
-    if not latest_files:
+        json_files.extend(jsons)
+    if not json_files:
         logging.critical(f"No JSON/JSONLD files found under {root_folder}")
     else:
-        logging.info(f"Found {len(latest_files)} most-recent JSON files from subdirectories")
-    return latest_files
+        logging.info(f"Found {len(json_files)} JSON files from subdirectories")
+    return json_files
 
+# =================== JSONLD PARSING ===================
+def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
+    results = {t: set() for t in TARGET_TYPES}
+
+    def _type_contains(node: dict, value: str) -> bool:
+        for key in ("type", "@type"):
+            t = node.get(key)
+            if t == value or (isinstance(t, list) and value in t):
+                return True
+        return False
+
+    def _extract_href_marcxml(node: Any, acc: Set[str]) -> None:
+        if isinstance(node, dict):
+            url_block = node.get("url")
+            if isinstance(url_block, list):
+                for link in url_block:
+                    if isinstance(link, dict):
+                        if link.get("mediaType") == "application/marc+xml":
+                            href = link.get("href", "").split("?", 1)[0]
+                            if href.endswith(".marcxml.xml"):
+                                acc.add(href)
+            for v in node.values():
+                _extract_href_marcxml(v, acc)
+        elif isinstance(node, list):
+            for item in node:
+                _extract_href_marcxml(item, acc)
+
+    def _walk_jsonld(node: Any):
+        if isinstance(node, dict):
+            for t in ("Create", "Update"):
+                if _type_contains(node, t):
+                    acc = set()
+                    obj = node.get("object")
+                    if obj:
+                        _extract_href_marcxml(obj, acc)
+                    results[t].update(acc)
+
+            if _type_contains(node, "Remove"):
+                acc = set()
+                obj = node.get("object")
+                if obj:
+                    _extract_href_marcxml(obj, acc)
+                results["Remove"].update(acc)
+
+            for v in node.values():
+                _walk_jsonld(v)
+
+        elif isinstance(node, list):
+            for item in node:
+                _walk_jsonld(item)
+
+    _walk_jsonld(payload)
+    return results
+
+# =================== DOWNLOAD ===================
 def download_file(url: str, dest_folder: Path) -> str:
     dest_folder.mkdir(parents=True, exist_ok=True)
     filename = Path(url.split("?", 1)[0]).name
@@ -82,68 +136,6 @@ def save_csv_log(rows: List[Tuple[str, str, str]]) -> None:
         writer.writerow(["RecordType", "URL", "Status"])
         writer.writerows(rows)
     logging.info(f"[DONE] Results written to {CSV_FILE}")
-
-# =================== JSONLD PARSING ===================
-def parse_jsonld_structured(payload: Any) -> Dict[str, Set[str]]:
-    results = {t: set() for t in TARGET_TYPES}
-
-    def _type_contains(node: dict, value: str) -> bool:
-        for key in ("type", "@type"):
-            t = node.get(key)
-            if t == value or (isinstance(t, list) and value in t):
-                return True
-        return False
-
-    def _collect_urls_ending_marcxml(obj: Any, acc: Set[str]) -> None:
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                _collect_urls_ending_marcxml(k, acc)
-                _collect_urls_ending_marcxml(v, acc)
-        elif isinstance(obj, list):
-            for item in obj:
-                _collect_urls_ending_marcxml(item, acc)
-        elif isinstance(obj, str):
-            s = obj.strip()
-            if s.startswith("https://id.loc.gov/") and s.lower().endswith(".marcxml.xml"):
-                acc.add(s.split("?", 1)[0])
-
-    def _extract_remove_urls_from_node(node: Any) -> Set[str]:
-        urls = set()
-        if not (isinstance(node, dict) and _type_contains(node, "Remove")):
-            return urls
-        obj = node.get("object")
-        if isinstance(obj, dict):
-            for link in obj.get("url", []):
-                if isinstance(link, dict) and link.get("mediaType") == "application/marc+xml":
-                    href = link.get("href", "").split("?", 1)[0]
-                    if href.endswith(".marcxml.xml"):
-                        urls.add(href)
-        return urls
-
-    def _walk_jsonld(node: Any):
-        if isinstance(node, dict):
-            for t in ("Create", "Update"):
-                if _type_contains(node, t):
-                    tmp = set()
-                    obj = node.get("object")
-                    if obj:
-                        _collect_urls_ending_marcxml(obj, tmp)
-                    else:
-                        _collect_urls_ending_marcxml(node, tmp)
-                    results[t].update(tmp)
-
-            if _type_contains(node, "Remove"):
-                results["Remove"].update(_extract_remove_urls_from_node(node))
-
-            for v in node.values():
-                _walk_jsonld(v)
-
-        elif isinstance(node, list):
-            for item in node:
-                _walk_jsonld(item)
-
-    _walk_jsonld(payload)
-    return results
 
 # =================== MARC CONVERSION ===================
 def log_marc(msg: str):
@@ -250,7 +242,7 @@ def main():
         ]
     )
 
-    json_files = find_latest_json_files_recursive(INPUT_DIR)
+    json_files = find_all_json_files_recursive(INPUT_DIR)
     if not json_files:
         return
 
