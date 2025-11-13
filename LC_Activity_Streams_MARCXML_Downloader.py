@@ -77,7 +77,8 @@ def _type_contains(node: dict, value: str) -> bool:
 
 def _collect_urls_ending_marcxml(obj: Any, acc: Set[str]) -> None:
     if isinstance(obj, dict):
-        for v in obj.values():
+        for k, v in obj.items():
+            _collect_urls_ending_marcxml(k, acc)
             _collect_urls_ending_marcxml(v, acc)
     elif isinstance(obj, list):
         for item in obj:
