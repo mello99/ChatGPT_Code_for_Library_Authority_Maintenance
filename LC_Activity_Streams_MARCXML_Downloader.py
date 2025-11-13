@@ -31,7 +31,7 @@ MARCEDIT_PATH = Path(r"C:\...\cmarcedit.exe")
 CONVERTED_BASE = OUTPUT_BASE / "Converted_MARC"
 JOINED_DIR = OUTPUT_BASE / "Joined_MARC"
 LOG_FILE_MARCEDIT = Path(r"C:\Scripts\LC_Activity_Logs\marcedit_conversion_log.txt")
-archive_dir = out_dir / "Previously_Joined_MARC_Files"
+archive_dir = OUTPUT_BASE / "Previously_Joined_MARC_Files"
 archive_dir.mkdir(exist_ok=True)
 PER_FILE_TIMEOUT = 90
 
@@ -220,7 +220,7 @@ def convert_and_join_by_type(record_type: str):
         log_marc(f"[{record_type}] Skipping join: only {len(converted_files)} file(s).")
         return
 
-        try:
+    try:
         with open(joined_output, "wb") as outfh:
             for name in sorted(converted_files):
                 with open(name, "rb") as infh:
@@ -229,7 +229,6 @@ def convert_and_join_by_type(record_type: str):
         if joined_output.stat().st_size > 0:
             log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
 
-            # === MOVE joined files to archive ===
             archive_dir = out_dir / "Previously_Joined_MARC_Files"
             archive_dir.mkdir(exist_ok=True)
 
@@ -240,15 +239,6 @@ def convert_and_join_by_type(record_type: str):
                     log_marc(f"[{record_type}] Moved to archive: {file.name}")
                 except Exception as e:
                     log_marc(f"[{record_type}] ERROR moving {file.name} to archive: {e}")
-
-        else:
-            log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
-
-    except Exception as e:
-        log_marc(f"[{record_type}] ERROR during join: {e}")
-
-        if joined_output.stat().st_size > 0:
-            log_marc(f"[{record_type}] SUCCESS: Joined MARC file created: {joined_output}")
         else:
             log_marc(f"[{record_type}] WARNING: Joined MARC file is empty.")
     except Exception as e:
