@@ -9,5 +9,3 @@ download_LCSH_activity_stream.bat - downloads daily LCSH activity streams in JSO
 LC_Activity_Streams_MARCXML_Downloader.py - harvests, downloads, converts, and joins MARC authority files to be imported into ILSes.
 
 run_lc_activity_streams_marcxml_downloader.bat - initializes "LC_Activity_Streams_MARCXML_Downloader.py" from a Windows environment
-
-Feel free to comment - code recommendations are always welcome!
