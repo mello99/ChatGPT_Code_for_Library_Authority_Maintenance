@@ -33,12 +33,12 @@ JOINED_DIR = OUTPUT_BASE / "Joined_MARC"
 LOG_FILE_MARCEDIT = Path(r"C:\Scripts\LC_Activity_Logs\marcedit_conversion_log.txt")
 PER_FILE_TIMEOUT = 90
 
-ensure_dirs(OUTPUT_BASE, LOG_FILE.parent, CSV_FILE.parent, CONVERTED_BASE, JOINED_DIR, LOG_FILE_MARCEDIT.parent)
-
 # =================== UTILITIES ===================
 def ensure_dirs(*paths):
     for path in paths:
         os.makedirs(path, exist_ok=True)
+
+ensure_dirs(OUTPUT_BASE, LOG_FILE.parent, CSV_FILE.parent, CONVERTED_BASE, JOINED_DIR, LOG_FILE_MARCEDIT.parent)
 
 logging.basicConfig(
     level=logging.INFO,
