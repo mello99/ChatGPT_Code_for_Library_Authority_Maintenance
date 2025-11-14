@@ -10,7 +10,7 @@ REM === Get stable date (locale-agnostic) ===
 for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "today=%%I"
 set "filename=LCNAF_activity_stream_!today!.json"
 set "outfile=%output_folder%\%filename%"
-set "logfile=%log_folder%\lcsh_download_log_!today!.txt"
+set "logfile=%log_folder%\lcnaf_download_log_!today!.txt"
 
 REM === Ensure folders exist ===
 if not exist "%output_folder%" mkdir "%output_folder%"
